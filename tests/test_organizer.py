@@ -413,7 +413,7 @@ def test_ingest_maps_unrecognised_names_to_plex_show(env):
                        episodes=[(1, "Pilot")], files=[MediaFile("/data/TV/Little Britain (2003)/Season 01/x.mkv")])
     extra, stubs, left = ingest.plan_ingest(cfg, [tracked], mapper)
     dsts = sorted(next(iter(i.dst_override.values())) for i in extra)
-    assert dsts == ["/data/TV/Little Britain (2003)/Season 01/Featurettes/Behind the Scenes.mkv",
+    assert dsts == ["/data/TV/Little Britain (2003)/Season 01/Behind The Scenes/Behind the Scenes.mkv",
                     "/data/TV/Little Britain (2003)/Season 01/Little Britain (2003) - s01e06.mkv"]
     assert stubs == ["/data/TV/Little Britain/Stub.mkv"] and [u.path for u in left] == ["/data/TV/Little Britain/Mystery.mkv"]
     ops = build_plan(cfg, extra, mapper, None)
@@ -446,3 +446,30 @@ def test_gateway_ip_parses_proc_net_route(tmp_path):
     f = tmp_path / "route"
     f.write_text("Iface\tDestination\tGateway\tFlags\neth0\t00000000\t0100A8C0\t0003\neth0\t0000A8C0\t00000000\t0001\n")
     assert net.gateway_ip(str(f)) == "192.168.0.1"
+
+
+def test_ingest_uses_journal_aliases_and_recognises_ova_and_extras_folders(env):
+    from plex_organizer import ingest
+
+    root, cfg, mapper = env
+    for rel in ("TV/Star Trek TNG/Season 01/Extras/Energized.Taking.mkv", "TV/Peep Show/Season 05/Peep.Show.S05.Extras.DVDRip/peep.show.s05.deleted.scenes.avi",
+                "Anime/Lucky Star/[EnA]_Lucky_Star_OVA_(DVD)_[5F74AE07].mkv"):
+        touch(str(root / rel))
+        (root / rel).write_text("x")
+    tng = PlexItem("TV", "episode", "/data/TV", "Pilot", show_title="Star Trek: The Next Generation", show_year=1987, season=1,
+                   episodes=[(1, "Pilot")], files=[MediaFile("/data/TV/Star Trek - The Next Generation (1987)/Season 01/a.mkv")])
+    peep = PlexItem("TV", "episode", "/data/TV", "x", show_title="Peep Show", show_year=2003, season=5, episodes=[(1, "x")],
+                    files=[MediaFile("/data/TV/Peep Show (2003)/Season 05/a.mkv")])
+    star = PlexItem("Anime", "episode", "/data/Anime", "x", show_title="Lucky Star", show_year=2007, season=1, episodes=[(1, "x")],
+                    files=[MediaFile("/data/Anime/Lucky Star (2007)/Season 01/a.mkv")])
+    records = [{"type": "fs", "src": f"{root}/TV/Star Trek TNG/Season 01/a.mkv",
+                "dst": f"{root}/TV/Star Trek - The Next Generation (1987)/Season 01/a.mkv"}]
+    aliases = ingest.load_aliases(records, ["/data/TV"], mapper)
+    assert aliases == {"startrektng": "startrekthenextgeneration"}
+    extra, _, left = ingest.plan_ingest(cfg, [tng, peep, star], mapper, aliases)
+    dsts = sorted(next(iter(i.dst_override.values())) for i in extra)
+    assert dsts == [
+        "/data/Anime/Lucky Star (2007)/Season 00/Lucky Star (2007) - s00e01 - Lucky Star OVA.mkv",
+        "/data/TV/Peep Show (2003)/Season 05/Deleted Scenes/peep.show.s05.deleted.scenes.avi",
+        "/data/TV/Star Trek - The Next Generation (1987)/Season 01/Featurettes/Energized.Taking.mkv"]
+    assert left == []

@@ -152,7 +152,9 @@ def cmd_ingest(cfg, args) -> int:
     api = _connect_deluge(cfg)
     index = DelugeIndex.from_api(api) if api else None
     items = _filter(load_items(cfg), args)
-    extra, stubs, unhandled = ingest.plan_ingest(cfg, items, mapper)
+    journal = Journal(os.path.join(cfg.state_dir, "journal.jsonl"))
+    aliases = ingest.load_aliases(journal.read(), sorted({it.root for it in items}), mapper)
+    extra, stubs, unhandled = ingest.plan_ingest(cfg, items, mapper, aliases)
     ops = build_plan(cfg, extra, mapper, index)
     for o in ops:
         print(f"{o.action:5s} {o.reason:26s} {o.src} -> {o.dst}")

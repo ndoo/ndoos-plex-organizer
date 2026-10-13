@@ -17,11 +17,12 @@ _EP_PATTERNS = (
 )
 _EP_ONLY = re.compile(r"(?:^|[ ._\[(-])[eE][pP]?[ ._-]?(\d{1,3})(?!\d)")
 _SEASON_DIR = re.compile(r"^(?:season|series|s)[ ._-]?(\d{1,2})$", re.I)
-_EXTRA_DIRS = {"extras", "dvd extras", "bonus", "featurettes", "special features"}
 _EXTRA_NAME = re.compile(
-    r"featurette|behind the scenes|making of|revisited|energized|sequence|sketches|art gallery|short.*movie|commercial|trailer",
+    r"featurette|behind the scenes|deleted scenes|making of|revisited|energized|sequence|sketches|art gallery"
+    r"|short.*movie|commercial|trailer|relationship tree|interview",
     re.I)
-_SPECIAL = re.compile(r"\b(ova|oad|special)\b", re.I)
+_EXTRA_DIR = re.compile(r"(?<![a-z])(extras?|bonus|special features|featurettes)(?![a-z])", re.I)
+_SPECIAL = re.compile(r"(?<![a-z])(ova|oad|special)(?![a-z])", re.I)
 
 
 @dataclass
@@ -35,6 +36,13 @@ def _norm(text: str) -> str:
 
 
 def _extra_type(name: str) -> str:
+    name = re.sub(r"[._]+", " ", name)
+    if re.search(r"deleted scenes", name, re.I):
+        return "Deleted Scenes"
+    if re.search(r"behind the scenes|making of", name, re.I):
+        return "Behind The Scenes"
+    if re.search(r"interview", name, re.I):
+        return "Interviews"
     if re.search(r"short.*movie|\bshorts?\b", name, re.I):
         return "Shorts"
     if re.search(r"commercial|trailer", name, re.I):
@@ -67,7 +75,29 @@ def _season_of(dirs: list[str]) -> int | None:
     return None
 
 
-def plan_ingest(cfg: Config, items: list[PlexItem], mapper: PathMapper) -> tuple[list[PlexItem], list[str], list[Unhandled]]:
+def load_aliases(records: list[dict], roots: list[str], mapper: PathMapper) -> dict[str, str]:
+    """Old top-level folder name -> new show folder name, learned from the rename journal."""
+    pairs: list[tuple[str, str]] = []
+    for r in records:
+        if r.get("type") == "fs":
+            pairs.append((r["src"], r["dst"]))
+        elif r.get("type") == "torrent":
+            for _, rel, tgt in r["files"]:
+                pairs.append((mapper.deluge_to_local(posixpath.join(r["old_save_path"], rel)),
+                              mapper.deluge_to_local(posixpath.join(r["new_save_path"], tgt))))
+    aliases: dict[str, str] = {}
+    for root in roots:
+        lr = mapper.to_local(root).rstrip("/") + "/"
+        for old, new in pairs:
+            if old.startswith(lr) and new.startswith(lr):
+                a, b = old[len(lr):].split("/")[0], new[len(lr):].split("/")[0]
+                if _norm(a) != _norm(b):
+                    aliases[_norm(a)] = _norm(b)
+    return aliases
+
+
+def plan_ingest(cfg: Config, items: list[PlexItem], mapper: PathMapper,
+                aliases: dict[str, str] | None = None) -> tuple[list[PlexItem], list[str], list[Unhandled]]:
     """Return synthetic items with fixed destinations, zero-byte stubs to purge, and files left unhandled."""
     shows: dict[tuple[str, str], PlexItem] = {}
     specials: dict[tuple[str, str], int] = defaultdict(int)
@@ -93,7 +123,9 @@ def plan_ingest(cfg: Config, items: list[PlexItem], mapper: PathMapper) -> tuple
             continue
         rel = posixpath.relpath(s.path, root).split("/")
         dirs, name = rel[:-1], rel[-1]
-        show = next((shows[(lib, _norm(d))] for d in dirs if (lib, _norm(d)) in shows), None)
+        aliases = aliases or {}
+        show = next((shows[(lib, k)] for d in dirs
+                     for k in (_norm(d), aliases.get(_norm(d), "")) if (lib, k) in shows), None)
         if show is None:
             unhandled.append(Unhandled(s.path, "no matching Plex show in path"))
             continue
@@ -102,7 +134,7 @@ def plan_ingest(cfg: Config, items: list[PlexItem], mapper: PathMapper) -> tuple
         season = _season_of(dirs)
         ep = parse_episode(name, dirs)
         key = (lib, _norm(show.show_title))
-        if any(d.strip().lower() in _EXTRA_DIRS for d in dirs) or _EXTRA_NAME.search(name):
+        if any(_EXTRA_DIR.search(d) for d in dirs) or _EXTRA_NAME.search(re.sub(r"[._]+", " ", name)):
             parent = posixpath.join(root, base, f"Season {season:02d}") if season else posixpath.join(root, base)
             dst = posixpath.join(parent, _extra_type(name), sanitize(name))
         elif ep:
