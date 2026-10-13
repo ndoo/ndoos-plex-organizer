@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ndoos-plex-organizer"
+version = "0.1.0"
+description = "ndoo's Plex Organizer: rename and sort Plex library files to Plex naming conventions, moving torrent-owned files through Deluge (vibe coded, specific to one setup)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "PlexAPI>=4.15",
+    "deluge-client>=1.10",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+plex-organizer = "plex_organizer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

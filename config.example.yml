@@ -1,0 +1,36 @@
+plex:
+  url: http://localhost:32400
+  # token: supplied via PLEX_TOKEN or PLEX_TOKEN_FILE, or read from Plex's Preferences.xml:
+  preferences_file: /plex/Preferences.xml
+
+deluge:
+  host: localhost
+  port: 58846
+  username: localclient
+  # password: supplied via DELUGE_PASSWORD or DELUGE_PASSWORD_FILE, or read from Deluge's auth file:
+  auth_file: /deluge/auth
+  # disabled: true   # only if nothing in the libraries is seeded by Deluge
+
+# Plex's view of a path, this container's view, and Deluge's view of the same directory.
+path_maps:
+  - plex: /data
+    local: /data
+    deluge: /media
+
+exclude:
+  libraries: []        # Plex library names or ids; Music and other non-video types are always skipped
+  paths: []            # globs on Plex paths, e.g. "/data/Movies/Home Videos/*"
+  titles: []           # regexes matched against movie / show titles
+  torrents: []         # torrent ids or name globs left untouched
+  torrent_labels: []   # Deluge Label-plugin labels left untouched
+
+# include:
+#   libraries: [Movies, TV Shows]   # allow-list; empty means every movie/show library
+
+naming:
+  id_tag_in_folder: false   # append {tmdb-123} style tag to folder names
+  leftovers_dir: .leftovers # where non-library files of a moved torrent go
+  # part_paths: ["/data/Movies/Some Long Film (1971)/*"]   # name these files - part1, - part2 instead of versions
+
+clean:
+  disc_dir: /data/BDMVs   # Blu-ray / DVD folders found in libraries are moved here (omit to leave them)
