@@ -368,3 +368,30 @@ def test_movie_archive_deleted_only_when_title_year_tracked(env):
     items = [movie("The Hitch-Hiker", 1953, "/data/Movies/The Hitch-Hiker (1953)/The Hitch-Hiker (1953).mkv")]
     cats = {os.path.basename(s.path): s.category for s in clean.find(cfg, items, mapper, None)}
     assert cats == {"the.hitch-hiker.1953.1080p-grp.r00": "delete", "other.1960.1080p-grp.r00": "review-archive"}
+
+
+def test_unpack_plan_and_apply(env):
+    from plex_organizer import unpack
+
+    root, cfg, mapper = env
+    d = root / "Movies/Rel.1953-GRP"
+    for n in ("x.rar", "x.r00", "x.r01", "x.sfv", "y.rar", "y.part1.rar", "y.part2.rar"):
+        touch(str(d / n))
+    big = 5_000_000
+    touch(f"{root}/Movies/Existing (1953)/Existing (1953).mkv")
+    (root / "Movies/Existing (1953)/Existing (1953).mkv").write_bytes(b"0" * big)
+    items = [movie("Existing", 1953, "/data/Movies/Existing (1953)/Existing (1953).mkv")]
+
+    def lister(path):
+        return [("x.mkv", big)] if path.endswith("x.rar") else [("y.mkv", big + 1)]
+
+    sets = {s.main: s for s in unpack.plan(cfg, items, mapper, None, lister=lister)}
+    assert set(sets) == {"x.rar", "y.rar", "y.part1.rar"}
+    assert sets["x.rar"].action == "delete-redundant" and sets["x.rar"].files == ["x.r00", "x.r01", "x.rar", "x.sfv"]
+
+    def fake_extract(archive, dest):
+        (root / "Movies/Rel.1953-GRP/y.mkv").write_bytes(b"0" * (big + 1))
+
+    ex, dele, problems = unpack.apply([sets["x.rar"], sets["y.rar"]], extract=fake_extract)
+    assert (ex, problems) == (1, []) and (d / "y.mkv").exists() and not (d / "x.rar").exists()
+    assert not (d / "y.rar").exists()

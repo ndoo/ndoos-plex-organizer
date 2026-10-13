@@ -123,6 +123,27 @@ def cmd_move(cfg, args) -> int:
     return 0
 
 
+def cmd_unpack(cfg, args) -> int:
+    from . import unpack
+
+    _check_deluge_policy(cfg)
+    mapper = PathMapper(cfg.path_maps)
+    api = _connect_deluge(cfg)
+    index = DelugeIndex.from_api(api) if api else None
+    items = _filter(load_items(cfg), args)
+    sets = unpack.plan(cfg, items, mapper, index)
+    for s in sets:
+        print(f"{s.action or 'skip':16s} {s.reason:26s} {os.path.join(s.directory, s.main)}")
+    if not args.yes:
+        print("dry run; pass --yes to extract and delete archive volumes")
+        return 0
+    extracted, deleted, problems = unpack.apply(sets)
+    print(f"extracted={extracted} archive_files_deleted={deleted}")
+    for line in problems:
+        print("problem:", line)
+    return 1 if problems else 0
+
+
 def cmd_apply(cfg, args) -> int:
     mapper, api, index, ops = _plan(cfg, args, settle=args.settle)
     print(_summary(ops))
@@ -170,13 +191,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default=os.environ.get("CONFIG", "/config/config.yml"))
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("plan", "audit", "clean", "apply", "watch"):
+    for name in ("plan", "audit", "clean", "unpack", "apply", "watch"):
         s = sub.add_parser(name)
         s.add_argument("--library", action="append", help="limit to a Plex library name (repeatable)")
         s.add_argument("--only", help="limit to files matching this glob (Plex paths)")
         if name != "plan":
             s.add_argument("--limit", type=int, help="stop after N torrents/files")
-        if name in ("apply", "clean"):
+        if name in ("apply", "clean", "unpack"):
             s.add_argument("--yes", action="store_true", help="perform the changes")
         if name == "apply":
             s.add_argument("--settle", action="store_true", help="skip recently modified files")
@@ -193,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
     os.makedirs(cfg.state_dir, exist_ok=True)
     if args.cmd == "watch":
         args.settle = True
-    return {"plan": cmd_plan, "audit": cmd_audit, "clean": cmd_clean, "move": cmd_move, "apply": cmd_apply, "undo": cmd_undo, "watch": cmd_watch}[args.cmd](cfg, args)
+    return {"plan": cmd_plan, "audit": cmd_audit, "clean": cmd_clean, "unpack": cmd_unpack, "move": cmd_move, "apply": cmd_apply, "undo": cmd_undo, "watch": cmd_watch}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":
