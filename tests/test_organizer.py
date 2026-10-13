@@ -418,3 +418,31 @@ def test_ingest_maps_unrecognised_names_to_plex_show(env):
     assert stubs == ["/data/TV/Little Britain/Stub.mkv"] and [u.path for u in left] == ["/data/TV/Little Britain/Mystery.mkv"]
     ops = build_plan(cfg, extra, mapper, None)
     assert {o.action for o in ops} == {"move"}
+
+
+def test_pick_host_prefers_configured_name_then_docker_host_then_localhost():
+    from plex_organizer import net
+
+    calls = []
+
+    def only(ok):
+        def connect(h, p):
+            calls.append(h)
+            return h == ok
+        return connect
+
+    assert net.pick_host("plex", 32400, connect=only("plex"), gateway="172.17.0.1") == "plex"
+    calls.clear()
+    assert net.pick_host("plex", 32400, connect=only("host.docker.internal"), gateway="172.17.0.1") == "host.docker.internal"
+    assert calls == ["plex", "host.docker.internal"]
+    assert net.pick_host("plex", 32400, connect=only("172.17.0.1"), gateway="172.17.0.1") == "172.17.0.1"
+    assert net.pick_host("plex", 32400, connect=only("127.0.0.1"), gateway="") == "127.0.0.1"
+    assert net.pick_host("plex", 32400, connect=lambda h, p: False, gateway="172.17.0.1") == "plex"
+
+
+def test_gateway_ip_parses_proc_net_route(tmp_path):
+    from plex_organizer import net
+
+    f = tmp_path / "route"
+    f.write_text("Iface\tDestination\tGateway\tFlags\neth0\t00000000\t0100A8C0\t0003\neth0\t0000A8C0\t00000000\t0001\n")
+    assert net.gateway_ip(str(f)) == "192.168.0.1"

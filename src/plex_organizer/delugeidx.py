@@ -23,7 +23,9 @@ class DelugeRpc:
     def __init__(self, host: str, port: int, username: str, password: str):
         from deluge_client import DelugeRPCClient
 
-        self.client = DelugeRPCClient(host, port, username, password, decode_utf8=True)
+        from .net import pick_host
+
+        self.client = DelugeRPCClient(pick_host(host, port), port, username, password, decode_utf8=True)
         self.client.connect()
 
     def torrents_status(self) -> dict[str, dict]:

@@ -188,9 +188,9 @@ def cmd_apply(cfg, args) -> int:
 
 
 def _refresh_plex(cfg) -> None:
-    from plexapi.server import PlexServer
+    from .plexsrc import connect
 
-    server = PlexServer(cfg.plex_url, cfg.plex_token)
+    server = connect(cfg)
     for s in server.library.sections():
         if s.type in ("movie", "show"):
             s.update()

@@ -13,6 +13,19 @@ from .model import MediaFile, PlexItem
 log = logging.getLogger(__name__)
 
 
+def connect(cfg: Config):
+    from urllib.parse import urlparse
+
+    from plexapi.server import PlexServer
+
+    from .net import pick_host
+
+    u = urlparse(cfg.plex_url)
+    port = u.port or (443 if u.scheme == "https" else 80)
+    host = pick_host(u.hostname or "127.0.0.1", port)
+    return PlexServer(u._replace(netloc=f"{host}:{port}").geturl(), cfg.plex_token)
+
+
 def library_excluded(cfg: Config, name: str, key: str) -> bool:
     ex = cfg.exclude.libraries
     if name in ex or str(key) in ex:
@@ -109,9 +122,7 @@ def _wait_for_scans(server, timeout: float = 900) -> None:
 
 def load_items(cfg: Config, server=None) -> list[PlexItem]:
     if server is None:
-        from plexapi.server import PlexServer
-
-        server = PlexServer(cfg.plex_url, cfg.plex_token)
+        server = connect(cfg)
     _wait_for_scans(server)
     items: list[PlexItem] = []
     for section in server.library.sections():
