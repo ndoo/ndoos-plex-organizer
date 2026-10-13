@@ -35,18 +35,18 @@ Probably only if all of these are true: Plex and Deluge 2.x run on a machine you
 
 You need: Plex with your libraries scanned, Deluge 2.x with its daemon reachable (default port 58846), Docker with Compose on the machine that holds the media, and a backup of Deluge's `state/` folder (plus a filesystem snapshot if you can take one).
 
-**1. Build the image**
+**1. Get the image**
 
-    git clone https://github.com/ndoo/ndoos-plex-organizer.git
-    cd ndoos-plex-organizer
-    docker build -t ndoos-plex-organizer .
+    docker pull ghcr.io/ndoo/ndoos-plex-organizer:latest
+
+or build it from a checkout: `git clone https://github.com/ndoo/ndoos-plex-organizer.git && docker build -t ndoos-plex-organizer ndoos-plex-organizer`.
 
 **2. Write the config**
 
-    mkdir config
-    cp config.example.yml config/config.yml
+    mkdir organizer-config
+    curl -o organizer-config/config.yml https://raw.githubusercontent.com/ndoo/ndoos-plex-organizer/main/config.example.yml
 
-The one setting that matters most is `path_maps`: the same folder as Plex sees it, as this container sees it, and as Deluge sees it. If Plex and this container mount the media at `/data` and Deluge mounts it at `/downloads`:
+Set the Plex and Deluge addresses and, most importantly, `path_maps`: the same folder as Plex sees it, as this container sees it, and as Deluge sees it. If Plex and this container mount the media at `/data` and Deluge mounts it at `/downloads`:
 
     path_maps:
       - plex: /data
@@ -55,23 +55,31 @@ The one setting that matters most is `path_maps`: the same folder as Plex sees i
 
 If this is wrong, torrent-owned files look like ordinary files and would be renamed behind Deluge's back. The first dry run shows you (step 3).
 
+**Networking.** Put the organizer on the same Docker network as Plex and Deluge and use their container (service) names, with Docker's internal DNS doing the rest:
+
+    plex:   {url: "http://plex:32400"}
+    deluge: {host: deluge}
+
+If Plex or Deluge runs with `network_mode: host`, those names do not resolve from a bridge network. The tool then tries `host.docker.internal` (add `extra_hosts: ["host.docker.internal:host-gateway"]`, as in the compose example), then the container's default gateway, then `127.0.0.1`, and uses the first one that answers; it logs which one it picked. You can also run the organizer itself with host networking and leave the addresses as `localhost`. Deluge's daemon must accept remote connections (`allow_remote`) when it is reached over a network.
+
 **3. Dry run**
 
-    docker run --rm --network host --user 1000:1000 \
-      -v ./config:/config -v /path/to/media:/data \
+    docker run --rm --network <network-shared-with-plex-and-deluge> --user 1000:1000 \
+      --add-host host.docker.internal:host-gateway \
+      -v ./organizer-config:/config -v /path/to/media:/data \
       -v "/path/to/plex/Preferences.xml:/plex/Preferences.xml:ro" \
       -v /path/to/deluge/auth:/deluge/auth:ro \
-      ndoos-plex-organizer plan
+      ghcr.io/ndoo/ndoos-plex-organizer:latest plan
 
-Or with Compose: copy `compose.example.yml`, fill in the paths, and run `docker compose -f compose.example.yml run --rm plex-organizer plan`.
+Or with Compose: add the `plex-organizer` service from `compose.example.yml` to your stack, fill in the paths, and run `docker compose run --rm plex-organizer plan`.
 
-`plan` prints a summary and writes `config/plan.csv`. Open it. Check that torrent-owned files show a torrent id in the `owner` column and that the targets look right. Nothing has changed yet.
+`plan` prints a summary and writes `organizer-config/plan.csv`. Open it. Check that torrent-owned files show a torrent id in the `owner` column and that the targets look right. Nothing has changed yet.
 
 **4. Try it on a few files**
 
     ... ndoos-plex-organizer apply --yes --limit 3 --library "Movies"
 
-(same `docker run` options as above, but with `/data` mounted read-write). Confirm that Deluge still shows the torrents as seeding with no recheck, and that Plex keeps the items and their watch state.
+(same options as above; `/data` must be mounted read-write). Confirm that Deluge still shows the torrents as seeding with no recheck, and that Plex keeps the items and their watch state.
 
 **5. Do the rest**
 

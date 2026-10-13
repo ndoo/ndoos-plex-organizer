@@ -1,10 +1,12 @@
 plex:
-  url: http://localhost:32400
+  # Container (service) name on the shared Docker network. If Plex runs with host networking the tool
+  # falls back to host.docker.internal, the Docker gateway, then localhost.
+  url: http://plex:32400
   # token: supplied via PLEX_TOKEN or PLEX_TOKEN_FILE, or read from Plex's Preferences.xml:
   preferences_file: /plex/Preferences.xml
 
 deluge:
-  host: localhost
+  host: deluge        # container (service) name; same fallback as above
   port: 58846
   username: localclient
   # password: supplied via DELUGE_PASSWORD or DELUGE_PASSWORD_FILE, or read from Deluge's auth file:

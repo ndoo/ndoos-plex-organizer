@@ -1,22 +1,28 @@
-# Copy this file next to your other compose files (or merge the service into yours), then:
-#   docker compose -f compose.example.yml build
-#   docker compose -f compose.example.yml run --rm plex-organizer plan
-#   docker compose -f compose.example.yml run --rm plex-organizer apply --yes --limit 3
-# The `watch` service is optional and only starts with: docker compose --profile watch up -d
+# Add this service to the compose file that already runs Plex and Deluge (or point `networks`
+# at the network they use), fill in the media and credential paths, then:
+#   docker compose run --rm plex-organizer plan
+#   docker compose run --rm plex-organizer apply --yes --limit 3
+# The optional `watch` service only starts with: docker compose --profile watch up -d
 services:
   plex-organizer:
-    build: .                         # or: image: ghcr.io/ndoo/ndoos-plex-organizer:latest
-    network_mode: host               # reaches Plex (32400) and the Deluge daemon (58846) on localhost
+    image: ghcr.io/ndoo/ndoos-plex-organizer:latest   # or: build: path/to/a/checkout
     user: "1000:1000"                # same uid/gid that owns the media files
     restart: "no"
     command: ["plan"]
     volumes:
-      - ./config:/config             # config.yml in, plan.csv / journal.jsonl / logs out
-      # Media root. Mount it read-write at the path your config's path_maps expects.
+      - ./organizer-config:/config   # config.yml in; plan.csv, journal.jsonl, deleted.log out
+      # Media root, mounted where your config's path_maps expects it.
       - /path/to/media:/data
       # Credentials are read straight from the Plex and Deluge config files (read-only).
       - /path/to/plex/config/Library/Application Support/Plex Media Server/Preferences.xml:/plex/Preferences.xml:ro
       - /path/to/deluge/config/auth:/deluge/auth:ro
+    # Reach Plex and Deluge by their container/service names on the shared compose network
+    # (plex.url: http://plex:32400, deluge.host: deluge). If either of them runs with
+    # network_mode: host, those names do not resolve; the tool then falls back to
+    # host.docker.internal, which this line maps to the Docker host.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # networks: [media]              # only needed if Plex/Deluge are on a non-default network
 
   plex-organizer-watch:
     extends:
@@ -24,3 +30,8 @@ services:
     profiles: [watch]
     restart: unless-stopped
     command: ["watch"]
+
+# networks:
+#   media:
+#     external: true
+#     name: your_existing_network
