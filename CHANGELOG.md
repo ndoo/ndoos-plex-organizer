@@ -7,6 +7,10 @@ behaviour between minor releases.
 
 ## [Unreleased]
 
+### Added
+
+- `accept_title_changes` config option to let a reviewed title change through.
+
 ## [0.1.0] - 2026-10-13
 
 First public release. Written for one specific setup (see the README).

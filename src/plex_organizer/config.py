@@ -55,6 +55,7 @@ class Config:
     path_maps: list[PathMap] = field(default_factory=list)
     exclude: Excludes = field(default_factory=Excludes)
     include_libraries: list[str] = field(default_factory=list)
+    accept_title_changes: list[str] = field(default_factory=list)
     naming: Naming = field(default_factory=Naming)
     state_dir: str = "/config"
     settle_seconds: int = 600
@@ -95,6 +96,7 @@ def load(path: str | os.PathLike | None) -> Config:
         plex_token=_secret("PLEX_TOKEN", plex.get("token", "")),
         path_maps=[PathMap(**m) for m in raw.get("path_maps", [])],
         include_libraries=list(raw.get("include", {}).get("libraries", [])),
+        accept_title_changes=list(raw.get("accept_title_changes", [])),
         state_dir=os.environ.get("STATE_DIR", raw.get("state_dir", Config.state_dir)),
         settle_seconds=int(raw.get("settle_seconds", Config.settle_seconds)),
         watch_interval=int(raw.get("watch_interval", Config.watch_interval)),

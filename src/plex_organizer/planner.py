@@ -156,7 +156,9 @@ def build_plan(
                     op.action, op.reason = "ok", "already named"
                 elif item.kind == "movie" and not item.year:
                     op.action, op.reason = "skip", "no year (unmatched in Plex)"
-                elif item.kind == "movie" and _title_changed(src, d):
+                elif item.kind == "movie" and _title_changed(src, d) and not any(
+                    fnmatch.fnmatch(src, g) for g in cfg.accept_title_changes
+                ):
                     op.action, op.reason = "skip", "Plex match changed; review"
                 ops.append(op)
 

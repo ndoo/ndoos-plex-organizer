@@ -517,3 +517,12 @@ def test_subtitle_rescue_uses_the_journal(env):
         "/data/Movies/Rel (2000)/Rel (2000).idx", "/data/Movies/Rel (2000)/Rel (2000).sub"]
     ops = build_plan(cfg, out, mapper, None)
     assert [o.action for o in ops] == ["move", "move"] and len(ops) == 2
+
+
+def test_accept_title_changes_lets_a_reviewed_rename_through(env):
+    root, cfg, mapper = env
+    touch(f"{root}/Movies/Old Title (1982).mkv")
+    item = movie("New Title", 1982, "/data/Movies/Old Title (1982).mkv")
+    assert build_plan(cfg, [item], mapper, None)[0].reason == "Plex match changed; review"
+    cfg.accept_title_changes = ["/data/Movies/Old Title*"]
+    assert build_plan(cfg, [item], mapper, None)[0].action == "move"

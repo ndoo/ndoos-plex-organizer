@@ -36,3 +36,8 @@ naming:
 
 clean:
   disc_dir: /data/BDMVs   # Blu-ray / DVD folders found in libraries are moved here (omit to leave them)
+
+# Normalised movies whose Plex title changed are skipped for review. Once you have checked that Plex's
+# new title is right, list the file here (Plex path globs) to let the rename through.
+# accept_title_changes:
+#   - "/data/Movies/Some Old Title (1982).mkv"

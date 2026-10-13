@@ -114,7 +114,7 @@ Naming: `Title (Year)/Title (Year).ext`; several versions `Title (Year) - 1080p.
 
 ## Why a file was skipped
 
-`plan.csv` gives a reason for every skip: the torrent holds a video Plex has not matched, spans libraries, is checking/moving/errored, or is excluded; the movie has no year in Plex (unmatched); the Plex title changed since the file was last normalised (check the match); two files map to the same name; the file sits inside a disc folder. Exclude things with `exclude` / `include` in the config (library names, path globs, title regexes, torrent names, Deluge labels).
+`plan.csv` gives a reason for every skip: the torrent holds a video Plex has not matched, spans libraries, is checking/moving/errored, or is excluded; the movie has no year in Plex (unmatched); the Plex title changed since the file was last normalised (check the match, then list the file under `accept_title_changes` to let it through); two files map to the same name; the file sits inside a disc folder. Exclude things with `exclude` / `include` in the config (library names, path globs, title regexes, torrent names, Deluge labels).
 
 ## Troubleshooting
 
