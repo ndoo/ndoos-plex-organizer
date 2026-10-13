@@ -146,7 +146,10 @@ def build_plan(
     for item in items:
         title = item.show_title or item.title
         for f, dst in _destinations(item, cfg.naming.part_paths, size_of):
-            pairs = [(f.path, dst, False)] + [(s, d, True) for s, d in _sidecars(cfg, mapper, f.path, dst)]
+            is_sub = item.kind == "custom" and posixpath.splitext(f.path)[1].lower() in cfg.naming.sidecar_exts
+            pairs = [(f.path, dst, False)]
+            if not is_sub:
+                pairs += [(s, d, True) for s, d in _sidecars(cfg, mapper, f.path, dst)]
             for src, d, is_side in pairs:
                 op = Op(item.library, item.root, src, d, title, sidecar=is_side)
                 if src == d or _only_counter_differs(src, d):

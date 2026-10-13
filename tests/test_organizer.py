@@ -515,3 +515,5 @@ def test_subtitle_rescue_uses_the_journal(env):
     out = ingest.plan_subtitle_rescue(cfg, items, mapper, records)
     assert sorted(next(iter(i.dst_override.values())) for i in out) == [
         "/data/Movies/Rel (2000)/Rel (2000).idx", "/data/Movies/Rel (2000)/Rel (2000).sub"]
+    ops = build_plan(cfg, out, mapper, None)
+    assert [o.action for o in ops] == ["move", "move"] and len(ops) == 2
