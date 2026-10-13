@@ -8,6 +8,7 @@ services:
     image: ghcr.io/ndoo/ndoos-plex-organizer:latest   # or: build: path/to/a/checkout
     user: "1000:1000"                # same uid/gid that owns the media files
     restart: "no"
+    profiles: [tools]                # `docker compose run` works without it; `up` will not start this
     command: ["plan"]
     volumes:
       - ./organizer-config:/config   # config.yml in; plan.csv, journal.jsonl, deleted.log out

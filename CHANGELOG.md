@@ -7,9 +7,15 @@ behaviour between minor releases.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-14
+
 ### Added
 
 - `accept_title_changes` config option to let a reviewed title change through.
+
+### Changed
+
+- `compose.example.yml` puts the organizer services in a profile so `docker compose up` does not start them.
 
 ## [0.1.0] - 2026-10-13
 

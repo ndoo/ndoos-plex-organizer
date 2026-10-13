@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ndoos-plex-organizer"
-version = "0.1.0"
+version = "0.2.0"
 description = "ndoo's Plex Organizer: rename and sort Plex library files to Plex naming conventions, moving torrent-owned files through Deluge (vibe coded, specific to my setup)"
 readme = "README.md"
 requires-python = ">=3.10"
