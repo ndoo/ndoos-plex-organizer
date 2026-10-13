@@ -290,6 +290,22 @@ def test_part_paths_name_split_movies_as_parts(env):
         "/data/Movies/Out 1 (1971)/Out 1 (1971) - part1.mkv", "/data/Movies/Out 1 (1971)/Out 1 (1971) - part2.mkv"]
 
 
+def test_move_torrent_and_free_dirs(env):
+    from plex_organizer import relocate
+
+    root, cfg, mapper = env
+    touch(f"{root}/Movies/Series.S01/e1.mkv")
+    touch(f"{root}/Movies/Plain/e1.mkv")
+    t = Torrent("s", "Series.S01", "/dl/Movies", "Seeding", 100.0, "", [(0, "Series.S01/e1.mkv")])
+    fake = FakeDeluge([t], mapper)
+    index = DelugeIndex.from_api(fake)
+    moves = relocate.plan_moves(["/data/Movies/Series.S01", "/data/Movies/Plain"], "/data/TV/Show", mapper, index)
+    assert [m.reason for m in moves] == ["", ""]
+    assert relocate.apply_moves(moves, mapper, index, fake, Journal(str(root / "j.jsonl"))) == 2
+    assert t.save_path == "/dl/TV/Show" and (root / "TV/Show/Series.S01/e1.mkv").exists()
+    assert (root / "TV/Show/Plain/e1.mkv").exists()
+
+
 def test_duplicate_quality_numbering_is_stable_and_unmatched_skipped(env):
     root, cfg, mapper = env
     for n, size in (("a", 1), ("b", 5)):

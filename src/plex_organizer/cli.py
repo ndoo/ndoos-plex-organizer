@@ -102,6 +102,27 @@ def cmd_clean(cfg, args) -> int:
     return 0
 
 
+def cmd_move(cfg, args) -> int:
+    from . import relocate
+
+    _check_deluge_policy(cfg)
+    mapper = PathMapper(cfg.path_maps)
+    api = _connect_deluge(cfg)
+    index = DelugeIndex.from_api(api) if api else None
+    moves = relocate.plan_moves(args.paths, args.to, mapper, index)
+    for m in moves:
+        kind = f"torrents={','.join(t[:8] for t in m.torrents)}" if m.torrents else "free"
+        print(f"{m.src} -> {m.dest} [{kind}] {m.reason or 'ok'}")
+    if not args.yes:
+        print("dry run; pass --yes to move")
+        return 0
+    n = relocate.apply_moves(moves, mapper, index, api, Journal(os.path.join(cfg.state_dir, "journal.jsonl")))
+    print(f"moved={n}")
+    if cfg.refresh_plex and n:
+        _refresh_plex(cfg)
+    return 0
+
+
 def cmd_apply(cfg, args) -> int:
     mapper, api, index, ops = _plan(cfg, args, settle=args.settle)
     print(_summary(ops))
@@ -159,6 +180,10 @@ def main(argv: list[str] | None = None) -> int:
             s.add_argument("--yes", action="store_true", help="perform the changes")
         if name == "apply":
             s.add_argument("--settle", action="store_true", help="skip recently modified files")
+    mv = sub.add_parser("move")
+    mv.add_argument("--to", required=True, help="destination directory (Plex path)")
+    mv.add_argument("--yes", action="store_true")
+    mv.add_argument("paths", nargs="+", help="files or directories (Plex paths) to move")
     u = sub.add_parser("undo")
     u.add_argument("--journal")
     u.add_argument("--match", help="only revert records whose source path matches this regex")
@@ -168,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     os.makedirs(cfg.state_dir, exist_ok=True)
     if args.cmd == "watch":
         args.settle = True
-    return {"plan": cmd_plan, "audit": cmd_audit, "clean": cmd_clean, "apply": cmd_apply, "undo": cmd_undo, "watch": cmd_watch}[args.cmd](cfg, args)
+    return {"plan": cmd_plan, "audit": cmd_audit, "clean": cmd_clean, "move": cmd_move, "apply": cmd_apply, "undo": cmd_undo, "watch": cmd_watch}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":
