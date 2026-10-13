@@ -60,6 +60,7 @@ class Config:
     settle_seconds: int = 600
     watch_interval: int = 900
     refresh_plex: bool = True
+    disc_dir: str | None = None
 
 
 def _secret(env: str, value: str) -> str:
@@ -98,6 +99,7 @@ def load(path: str | os.PathLike | None) -> Config:
         settle_seconds=int(raw.get("settle_seconds", Config.settle_seconds)),
         watch_interval=int(raw.get("watch_interval", Config.watch_interval)),
         refresh_plex=bool(raw.get("refresh_plex", True)),
+        disc_dir=raw.get("clean", {}).get("disc_dir"),
     )
     prefs = os.environ.get("PLEX_PREFERENCES_FILE", plex.get("preferences_file"))
     if not cfg.plex_token and prefs:

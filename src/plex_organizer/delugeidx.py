@@ -14,6 +14,7 @@ class DelugeApi(Protocol):
     def torrent_status(self, tid: str) -> dict: ...
     def move_storage(self, tid: str, dest: str) -> None: ...
     def rename_files(self, tid: str, renames: list[tuple[int, str]]) -> None: ...
+    def deselect_files(self, tid: str, indices: list[int]) -> None: ...
 
 
 class DelugeRpc:
@@ -38,6 +39,11 @@ class DelugeRpc:
         self.client.call("core.rename_files", tid, [[i, p] for i, p in renames])
 
 
+    def deselect_files(self, tid: str, indices: list[int]) -> None:
+        prios = list(self.client.call("core.get_torrent_status", tid, ["file_priorities"])["file_priorities"])
+        for i in indices:
+            prios[i] = 0
+        self.client.call("core.set_torrent_options", [tid], {"file_priorities": prios})
 
 
 @dataclass

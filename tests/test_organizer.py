@@ -205,6 +205,67 @@ def test_incomplete_torrent_allowed_unless_settling(env):
     assert build_plan(cfg, [item], mapper, DelugeIndex([t]), settle=True)[0].reason == "torrent incomplete"
 
 
+def test_clean_deselects_torrent_files_then_deletes(env):
+    from plex_organizer import clean
+
+    root, cfg, mapper = env
+    touch(f"{root}/Movies/Foo (2012)/Foo (2012).mkv")
+    touch(f"{root}/Movies/Foo (2012)/Foo (2012).en.srt")
+    touch(f"{root}/Movies/Foo (2012)/Foo.2012.release.nfo")
+    touch(f"{root}/Movies/Foo (2012)/Foo.2012.release.sfv")
+    touch(f"{root}/Movies/Foo (2012)/poster.jpg")
+    touch(f"{root}/Movies/Disc (2000)/BDMV/STREAM/00001.m2ts")
+    t = Torrent("a", "Foo", "/dl/Movies", "Seeding", 100.0, "",
+                [(0, "Foo (2012)/Foo (2012).mkv"), (1, "Foo (2012)/Foo.2012.release.nfo")])
+    fake = FakeDeluge([t], mapper)
+    index = DelugeIndex.from_api(fake)
+    items = [movie("Foo", 2012, "/data/Movies/Foo (2012)/Foo (2012).mkv")]
+    found = clean.find(cfg, items, mapper, index)
+    cats = {os.path.basename(s.path): s.category for s in found}
+    assert cats == {"Foo.2012.release.nfo": "delete", "Foo.2012.release.sfv": "delete", "poster.jpg": "keep-asset", "00001.m2ts": "keep-disc"}
+    removed, skipped = clean.apply_clean(found, mapper, index, fake, str(root / "deleted.log"))
+    assert removed == 2 and not skipped and t.deselected == [1]
+    assert not (root / "Movies/Foo (2012)/Foo.2012.release.nfo").exists()
+    assert (root / "Movies/Foo (2012)/Foo (2012).en.srt").exists()
+
+
+def test_disc_folders_moved_to_bdmv_dir(env):
+    from plex_organizer import clean
+
+    root, cfg, mapper = env
+    cfg.disc_dir = "/data/BDMVs"
+    touch(f"{root}/Movies/Foo (2012)/Foo (2012).mkv")
+    touch(f"{root}/Movies/FreeDisc/BDMV/STREAM/00001.m2ts")
+    touch(f"{root}/Movies/SeedDisc/BDMV/STREAM/00001.m2ts")
+    t = Torrent("d", "SeedDisc", "/dl/Movies", "Seeding", 100.0, "", [(0, "SeedDisc/BDMV/STREAM/00001.m2ts")])
+    fake = FakeDeluge([t], mapper)
+    index = DelugeIndex.from_api(fake)
+    items = [movie("Foo", 2012, "/data/Movies/Foo (2012)/Foo (2012).mkv")]
+    found = clean.find(cfg, items, mapper, index)
+    moves = clean.plan_discs(cfg, items, found, mapper, index)
+    assert {(m.root, m.owner, m.reason) for m in moves} == {
+        ("/data/Movies/FreeDisc", "free", ""), ("/data/Movies/SeedDisc", "d", "")}
+    assert clean.apply_discs(moves, mapper, index, fake, Journal(str(root / "j.jsonl"))) == 2
+    assert (root / "BDMVs/FreeDisc/BDMV/STREAM/00001.m2ts").exists()
+    assert t.save_path == "/dl/BDMVs" and (root / "BDMVs/SeedDisc/BDMV/STREAM/00001.m2ts").exists()
+
+
+def test_planner_skips_disc_structures_and_names_generic_discs(env):
+    from plex_organizer import clean
+
+    root, cfg, mapper = env
+    touch(f"{root}/TV/Show/Season 01/VIDEO_TS/VTS_01_1.VOB")
+    item = PlexItem("TV", "episode", "/data/TV", "Pilot", show_title="Show", season=1, episodes=[(1, "Pilot")],
+                    files=[MediaFile("/data/TV/Show/Season 01/VIDEO_TS/VTS_01_1.VOB")])
+    assert build_plan(cfg, [item], mapper, None)[0].reason == "inside disc structure"
+    cfg.disc_dir = "/data/BDMVs"
+    touch(f"{root}/TV/Show/Season 01/VIDEO_TS/VTS_01_0.IFO")
+    items = [PlexItem("TV", "episode", "/data/TV", "x", files=[MediaFile("/data/TV/Other/x.mkv")])]
+    touch(f"{root}/TV/Other/x.mkv")
+    moves = clean.plan_discs(cfg, items, clean.find(cfg, items, mapper, None), mapper, None)
+    assert [(m.root, m.dest) for m in moves] == [("/data/TV/Show/Season 01", "/data/BDMVs/Show - Season 01")]
+
+
 def test_prune_empty_dirs_keeps_root_and_nonempty(env):
     from plex_organizer.apply import prune_empty_dirs
 
@@ -261,3 +322,33 @@ def test_existing_counter_suffix_is_left_alone(env):
 
 def test_year_range_in_title_collapses_to_single_year():
     assert naming.with_year("Tom and Jerry (1940-1967)", 1940) == "Tom and Jerry (1940)"
+
+
+def test_clean_protects_disc_roots_images_and_temp_files(env):
+    from plex_organizer import clean
+
+    root, cfg, mapper = env
+    touch(f"{root}/Movies/Foo (2012)/Foo (2012).mkv")
+    touch(f"{root}/Movies/Disc/AACS/Unit_Key_RO.inf")
+    touch(f"{root}/Movies/Disc/BDMV/index.bdmv")
+    touch(f"{root}/Movies/Image/movie.iso")
+    touch(f"{root}/Movies/.part.AbC123")
+    touch(f"{root}/TV/Show/Show.S01E01.rar")
+    items = [movie("Foo", 2012, "/data/Movies/Foo (2012)/Foo (2012).mkv"),
+             PlexItem("TV", "episode", "/data/TV", "Pilot", show_title="Show", season=1, episodes=[(1, "Pilot")],
+                      files=[MediaFile("/data/TV/Show (2000)/Season 01/Show (2000) - s01e01 - Pilot.mkv")])]
+    cats = {os.path.basename(s.path): s.category for s in clean.find(cfg, items, mapper, None)}
+    assert cats["Unit_Key_RO.inf"] == "keep-disc" and cats["index.bdmv"] == "keep-disc"
+    assert cats["movie.iso"] == "keep-image" and cats[".part.AbC123"] == "review-temp"
+    assert cats["Show.S01E01.rar"] == "delete"
+
+
+def test_movie_archive_deleted_only_when_title_year_tracked(env):
+    from plex_organizer import clean
+
+    root, cfg, mapper = env
+    touch(f"{root}/Movies/The.Hitch-Hiker.1953.1080p-GRP/the.hitch-hiker.1953.1080p-grp.r00")
+    touch(f"{root}/Movies/Other.1960.1080p-GRP/other.1960.1080p-grp.r00")
+    items = [movie("The Hitch-Hiker", 1953, "/data/Movies/The Hitch-Hiker (1953)/The Hitch-Hiker (1953).mkv")]
+    cats = {os.path.basename(s.path): s.category for s in clean.find(cfg, items, mapper, None)}
+    assert cats == {"the.hitch-hiker.1953.1080p-grp.r00": "delete", "other.1960.1080p-grp.r00": "review-archive"}
