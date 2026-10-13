@@ -121,7 +121,7 @@ Naming: `Title (Year)/Title (Year).ext`; several versions `Title (Year) - 1080p.
 - **Torrent-owned files show as `free`**: `path_maps` does not match how Deluge sees the paths. Fix it before running `apply`.
 - **"No deluge section configured"**: add one, or set `deluge.disabled: true` if nothing in the libraries is seeded.
 - **A run stops with a Plex "not found" error**: Plex was rescanning. Run it again; the tool waits for running scans before reading the libraries.
-- **`unpack` reports "Unsupported Method"**: the bundled 7z cannot read that RAR variant. The archive is left untouched.
+- **`unpack` reports "Unsupported Method"**: that RAR variant needs the non-free `unrar`, which the image installs from Debian's non-free section at build time (if you build without it, `unpack` falls back to 7z). Archives that cannot be extracted are left untouched.
 - **Names look wrong**: they come from Plex. Use "Fix match" in Plex (or correct the files Plex mismatched), rescan, and plan again.
 
 ## Releases

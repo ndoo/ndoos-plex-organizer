@@ -473,3 +473,19 @@ def test_ingest_uses_journal_aliases_and_recognises_ova_and_extras_folders(env):
         "/data/TV/Peep Show (2003)/Season 05/Deleted Scenes/peep.show.s05.deleted.scenes.avi",
         "/data/TV/Star Trek - The Next Generation (1987)/Season 01/Featurettes/Energized.Taking.mkv"]
     assert left == []
+
+
+def test_unpack_restores_vobsub_name_and_cleans_failed_outputs(env):
+    from plex_organizer import unpack
+
+    root, cfg, mapper = env
+    d = root / "TV/Show/Subs"
+    d.mkdir(parents=True)
+    (d / "e.idx").write_bytes(b"idx")
+    (d / "e.rar").write_bytes(b"\x00\x00\x01\xba sub data")
+    s = unpack.ArchiveSet(str(d), "e.subs.rar", ["e.subs.rar"], [("e.idx", 3), ("e.rar", 14)])
+    unpack.fix_vobsub(s)
+    assert (d / "e.sub").exists() and not (d / "e.rar").exists()
+    (d / "z.idx").write_bytes(b"")
+    unpack._remove_empty_outputs(unpack.ArchiveSet(str(d), "z.rar", [], [("z.idx", 5)]))
+    assert not (d / "z.idx").exists() and (d / "e.idx").exists()

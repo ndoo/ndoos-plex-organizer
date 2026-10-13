@@ -4,6 +4,7 @@ import logging
 import os
 import posixpath
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 
@@ -121,11 +122,14 @@ def apply(sets: list[ArchiveSet], extract=None) -> tuple[int, int, list[str]]:
                        if not os.path.exists(os.path.join(s.directory, p))
                        or (sz and os.path.getsize(os.path.join(s.directory, p)) != sz)]
             except Exception as e:  # noqa: BLE001
+                _remove_empty_outputs(s)
                 problems.append(f"{s.directory}/{s.main}: {e}")
                 continue
             if bad:
+                _remove_empty_outputs(s)
                 problems.append(f"{s.directory}/{s.main}: extracted files missing or wrong size: {bad[:3]}")
                 continue
+            fix_vobsub(s)
             extracted += 1
         for f in s.files:
             try:
@@ -136,7 +140,31 @@ def apply(sets: list[ArchiveSet], extract=None) -> tuple[int, int, list[str]]:
     return extracted, deleted, problems
 
 
+def _remove_empty_outputs(s: ArchiveSet) -> None:
+    """A failed extraction can leave zero-byte placeholders; remove the ones it created."""
+    for p, _ in s.contents:
+        full = os.path.join(s.directory, p)
+        if os.path.isfile(full) and os.path.getsize(full) == 0:
+            os.remove(full)
+
+
+def fix_vobsub(s: ArchiveSet) -> None:
+    """Scene releases hide a VobSub .sub file as '<name>.rar' next to '<name>.idx'; restore the name."""
+    for p, _ in s.contents:
+        full = os.path.join(s.directory, p)
+        if p.lower().endswith(".rar") and os.path.isfile(full):
+            stem = full[:-4]
+            if os.path.exists(stem + ".idx"):
+                with open(full, "rb") as fh:
+                    if not fh.read(4).startswith(b"Rar!"):
+                        os.replace(full, stem + ".sub")
+
+
 def _extract(archive: str, dest: str) -> None:
-    res = subprocess.run(["7z", "x", "-y", f"-o{dest}", archive], capture_output=True, text=True)
+    if shutil.which("unrar"):
+        cmd = ["unrar", "x", "-y", "-o+", archive, dest.rstrip("/") + "/"]
+    else:
+        cmd = ["7z", "x", "-y", f"-o{dest}", archive]
+    res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
         raise RuntimeError((res.stderr or res.stdout).strip()[-300:])
