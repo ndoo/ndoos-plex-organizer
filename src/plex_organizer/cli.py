@@ -62,6 +62,17 @@ def cmd_plan(cfg, args) -> int:
     return 0
 
 
+def cmd_audit(cfg, args) -> int:
+    from .audit import audit, render
+
+    findings = audit(_filter(load_items(cfg), args))
+    text = render(findings)
+    with open(os.path.join(cfg.state_dir, "audit.txt"), "w") as fh:
+        fh.write(text + "\n")
+    print(text or "no suspicious matches")
+    return 0
+
+
 def cmd_apply(cfg, args) -> int:
     mapper, api, index, ops = _plan(cfg, args, settle=args.settle)
     print(_summary(ops))
@@ -109,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default=os.environ.get("CONFIG", "/config/config.yml"))
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("plan", "apply", "watch"):
+    for name in ("plan", "audit", "apply", "watch"):
         s = sub.add_parser(name)
         s.add_argument("--library", action="append", help="limit to a Plex library name (repeatable)")
         s.add_argument("--only", help="limit to files matching this glob (Plex paths)")
@@ -128,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     os.makedirs(cfg.state_dir, exist_ok=True)
     if args.cmd == "watch":
         args.settle = True
-    return {"plan": cmd_plan, "apply": cmd_apply, "undo": cmd_undo, "watch": cmd_watch}[args.cmd](cfg, args)
+    return {"plan": cmd_plan, "audit": cmd_audit, "apply": cmd_apply, "undo": cmd_undo, "watch": cmd_watch}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

@@ -176,6 +176,22 @@ def test_credentials_from_files(tmp_path, monkeypatch):
     assert cfg.plex_token == "tok123" and cfg.deluge.password == "secret"
 
 
+def test_audit_flags_wrong_series_and_numbers():
+    from plex_organizer.audit import audit, parse_filename
+
+    p = parse_filename("Game.of.Thrones.S01E01.Winter.Is.Coming.2160p.UHD.mkv")
+    assert (p.series, p.season, p.episodes, p.title) == ("Game of Thrones", 1, [1], "Winter Is Coming")
+
+    def ep(path, n, title):
+        return PlexItem("TV", "episode", "/data/TV", title, show_title="Rick and Morty", season=1,
+                        episodes=[(n, title)], files=[MediaFile(path)])
+
+    items = [ep("/data/TV/R/Game.of.Thrones.S01E01.Winter.Is.Coming.1080p.mkv", 1, "Pilot"),
+             ep("/data/TV/R/Rick.and.Morty.S01E02.Lawnmower.Dog.1080p.mkv", 3, "Lawnmower Dog")]
+    kinds = {f.kind for f in audit(items)}
+    assert {"different series in filename", "season/episode number differs"} <= kinds
+
+
 def test_title_already_carrying_year():
     assert naming.with_year("The Tom and Jerry Show (2014)", 2011) == "The Tom and Jerry Show (2014)"
 
