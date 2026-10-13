@@ -4,9 +4,9 @@
 
 ## The problem it solves
 
-You have a Plex library full of release-style filenames (`Show.S01E01.1080p.WEB-DL-GRP.mkv`, loose movies, `Season 01` folders at the wrong level), and most of those files are still being seeded by Deluge. Renaming them by hand or with a generic renamer breaks the torrents: Deluge loses the files and starts rechecking or errors out.
+I have a Plex library full of release-style filenames (`Show.S01E01.1080p.WEB-DL-GRP.mkv`, loose movies, `Season 01` folders at the wrong level), and most of those files are still being seeded by Deluge. Renaming them by hand, or with a generic renamer, breaks the torrents: Deluge loses the files and starts rechecking or errors out.
 
-This tool renames and sorts the files to Plex's naming scheme, using Plex's own matches as the source of truth, and changes anything a torrent owns through Deluge's RPC so the torrent keeps seeding without a recheck.
+So I wrote this to rename and sort my files to Plex's naming scheme, using Plex's own matches as the source of truth, and to change anything a torrent owns through Deluge's RPC so the torrent keeps seeding without a recheck.
 
 Before and after:
 
@@ -20,9 +20,9 @@ Before and after:
 
 ## Is this for you?
 
-Probably only if all of these are true: Plex and Deluge 2.x run on a machine you control, the media sits on a filesystem where renames are instant (one dataset or volume), you are comfortable with Docker and reading a CSV, and you can fix wrong matches in Plex yourself. If you use Sonarr/Radarr to manage the library from the start, you do not need this.
+Probably only if you have the same problem. I wrote it for one setup: Plex and Deluge 2.x on a machine I control, media on a single filesystem where renames are instant, and me being comfortable with Docker, reading a CSV, and fixing wrong matches in Plex myself. If you use Sonarr/Radarr to manage the library from the start, you do not need this.
 
-## What it will and will not do to your files
+## What it will and will not do to the files
 
 - Renames and moves video files (plus their subtitles/NFOs that share the filename) inside your movie and TV libraries, and creates the folders needed.
 - Torrent-owned files are changed only through Deluge. Their Deluge save path ends up at the library root.
@@ -37,7 +37,7 @@ You need: Plex with your libraries scanned, Deluge 2.x with its daemon reachable
 
 **1. Get the image**
 
-    docker pull ghcr.io/ndoo/ndoos-plex-organizer:latest
+    docker pull ghcr.io/ndoo/ndoos-plex-organizer:latest   # newest release; :edge follows main
 
 or build it from a checkout: `git clone https://github.com/ndoo/ndoos-plex-organizer.git && docker build -t ndoos-plex-organizer ndoos-plex-organizer`.
 
@@ -123,6 +123,10 @@ Naming: `Title (Year)/Title (Year).ext`; several versions `Title (Year) - 1080p.
 - **A run stops with a Plex "not found" error**: Plex was rescanning. Run it again; the tool waits for running scans before reading the libraries.
 - **`unpack` reports "Unsupported Method"**: the bundled 7z cannot read that RAR variant. The archive is left untouched.
 - **Names look wrong**: they come from Plex. Use "Fix match" in Plex (or correct the files Plex mismatched), rescan, and plan again.
+
+## Releases
+
+Versions follow [Semantic Versioning](https://semver.org); changes are listed in `CHANGELOG.md`. Pushing a tag such as `v0.1.0` runs the release workflow: it checks the tag against `pyproject.toml`, runs the tests, builds the sdist and wheel, publishes the image to GHCR as `X.Y.Z`, `X.Y` and `latest`, and creates the GitHub release from the matching CHANGELOG section. Pushes to `main` publish `edge`.
 
 ## Development
 
