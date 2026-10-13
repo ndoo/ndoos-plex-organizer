@@ -29,6 +29,7 @@ class PlexItem:
     edition: str | None = None
     id_tag: str | None = None
     files: list[MediaFile] = field(default_factory=list)
+    dst_override: dict[str, str] = field(default_factory=dict)  # source path -> fixed destination
 
 
 @dataclass

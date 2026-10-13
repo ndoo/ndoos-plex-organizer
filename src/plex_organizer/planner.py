@@ -43,6 +43,8 @@ def _destinations(item: PlexItem, part_paths: tuple[str, ...] = (), size_of=lamb
     labels = _labels(item.files, size_of)
     split = item.kind == "movie" and any(fnmatch.fnmatch(f.path, g) for f in item.files for g in part_paths)
     order = {f.path: n for n, f in enumerate(sorted(item.files, key=lambda f: f.path), 1)}
+    if item.dst_override:
+        return [(f, item.dst_override[f.path]) for f in item.files]
     out = []
     for f in item.files:
         ext = posixpath.splitext(f.path)[1]

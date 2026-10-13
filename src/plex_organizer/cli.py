@@ -144,6 +144,35 @@ def cmd_unpack(cfg, args) -> int:
     return 1 if problems else 0
 
 
+def cmd_ingest(cfg, args) -> int:
+    from . import ingest
+
+    _check_deluge_policy(cfg)
+    mapper = PathMapper(cfg.path_maps)
+    api = _connect_deluge(cfg)
+    index = DelugeIndex.from_api(api) if api else None
+    items = _filter(load_items(cfg), args)
+    extra, stubs, unhandled = ingest.plan_ingest(cfg, items, mapper)
+    ops = build_plan(cfg, extra, mapper, index)
+    for o in ops:
+        print(f"{o.action:5s} {o.reason:26s} {o.src} -> {o.dst}")
+    for s in stubs:
+        print(f"stub  zero-byte file: {s}")
+    for u in unhandled:
+        print(f"left  {u.reason}: {u.path}")
+    if not args.yes:
+        print("dry run; pass --yes to rename these and delete the stubs")
+        return 0
+    res = apply_plan(cfg, ops, mapper, index, api, Journal(os.path.join(cfg.state_dir, "journal.jsonl")))
+    for sp in stubs:
+        os.remove(mapper.to_local(sp))
+    pruned = prune_empty_dirs([o.root for o in ops], mapper)
+    print(f"moved={res.moved} torrents={res.torrents} failed={res.failed} stubs_deleted={len(stubs)} empty_dirs_removed={pruned}")
+    if cfg.refresh_plex and res.moved:
+        _refresh_plex(cfg)
+    return 1 if res.failed else 0
+
+
 def cmd_apply(cfg, args) -> int:
     mapper, api, index, ops = _plan(cfg, args, settle=args.settle)
     print(_summary(ops))
@@ -191,13 +220,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-c", "--config", default=os.environ.get("CONFIG", "/config/config.yml"))
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("plan", "audit", "clean", "unpack", "apply", "watch"):
+    for name in ("plan", "audit", "clean", "unpack", "ingest", "apply", "watch"):
         s = sub.add_parser(name)
         s.add_argument("--library", action="append", help="limit to a Plex library name (repeatable)")
         s.add_argument("--only", help="limit to files matching this glob (Plex paths)")
         if name != "plan":
             s.add_argument("--limit", type=int, help="stop after N torrents/files")
-        if name in ("apply", "clean", "unpack"):
+        if name in ("apply", "clean", "unpack", "ingest"):
             s.add_argument("--yes", action="store_true", help="perform the changes")
         if name == "apply":
             s.add_argument("--settle", action="store_true", help="skip recently modified files")
@@ -214,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     os.makedirs(cfg.state_dir, exist_ok=True)
     if args.cmd == "watch":
         args.settle = True
-    return {"plan": cmd_plan, "audit": cmd_audit, "clean": cmd_clean, "unpack": cmd_unpack, "move": cmd_move, "apply": cmd_apply, "undo": cmd_undo, "watch": cmd_watch}[args.cmd](cfg, args)
+    return {"plan": cmd_plan, "audit": cmd_audit, "clean": cmd_clean, "unpack": cmd_unpack, "ingest": cmd_ingest, "move": cmd_move, "apply": cmd_apply, "undo": cmd_undo, "watch": cmd_watch}[args.cmd](cfg, args)
 
 
 if __name__ == "__main__":

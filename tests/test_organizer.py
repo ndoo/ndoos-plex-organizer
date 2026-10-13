@@ -395,3 +395,26 @@ def test_unpack_plan_and_apply(env):
     ex, dele, problems = unpack.apply([sets["x.rar"], sets["y.rar"]], extract=fake_extract)
     assert (ex, problems) == (1, []) and (d / "y.mkv").exists() and not (d / "x.rar").exists()
     assert not (d / "y.rar").exists()
+
+
+def test_ingest_maps_unrecognised_names_to_plex_show(env):
+    from plex_organizer import ingest
+
+    root, cfg, mapper = env
+    touch(f"{root}/TV/Little Britain/Season 01/[S1.Ep6] Little Britain - Episode 6.mkv")
+    (root / "TV/Little Britain/Season 01/[S1.Ep6] Little Britain - Episode 6.mkv").write_text("x")
+    touch(f"{root}/TV/Little Britain/Season 01/Extras/Behind the Scenes.mkv")
+    touch(f"{root}/TV/Little Britain/Stub.mkv")
+    (root / "TV/Little Britain/Stub.mkv").write_text("")
+    touch(f"{root}/TV/Little Britain/Mystery.mkv")
+    (root / "TV/Little Britain/Mystery.mkv").write_text("x")
+    (root / "TV/Little Britain/Season 01/Extras/Behind the Scenes.mkv").write_text("x")
+    tracked = PlexItem("TV", "episode", "/data/TV", "Pilot", show_title="Little Britain", show_year=2003, season=1,
+                       episodes=[(1, "Pilot")], files=[MediaFile("/data/TV/Little Britain (2003)/Season 01/x.mkv")])
+    extra, stubs, left = ingest.plan_ingest(cfg, [tracked], mapper)
+    dsts = sorted(next(iter(i.dst_override.values())) for i in extra)
+    assert dsts == ["/data/TV/Little Britain (2003)/Season 01/Featurettes/Behind the Scenes.mkv",
+                    "/data/TV/Little Britain (2003)/Season 01/Little Britain (2003) - s01e06.mkv"]
+    assert stubs == ["/data/TV/Little Britain/Stub.mkv"] and [u.path for u in left] == ["/data/TV/Little Britain/Mystery.mkv"]
+    ops = build_plan(cfg, extra, mapper, None)
+    assert {o.action for o in ops} == {"move"}
