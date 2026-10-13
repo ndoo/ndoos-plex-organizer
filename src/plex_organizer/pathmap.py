@@ -27,6 +27,13 @@ class PathMapper:
     def to_deluge(self, plex_path: str) -> str:
         return self._translate(plex_path, "deluge")
 
+    def local_to_plex(self, local_path: str) -> str:
+        for m in sorted(self.maps, key=lambda m: len(m.local or m.plex), reverse=True):
+            l = (m.local or m.plex).rstrip("/")
+            if _under(local_path, l):
+                return m.plex.rstrip("/") + local_path[len(l):]
+        return local_path
+
     def deluge_to_plex(self, deluge_path: str) -> str:
         for m in sorted(self.maps, key=lambda m: len(m.deluge or m.plex), reverse=True):
             d = (m.deluge or m.plex).rstrip("/")

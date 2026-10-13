@@ -88,21 +88,32 @@ def _title_changed(src: str, dst: str) -> bool:
     return bool(a and b and a.group(1) != b.group(1))
 
 
+SUB_DIRS = {"subs", "sub", "subtitles", "subtitle"}
+
+
 def _sidecars(cfg: Config, mapper: PathMapper, src: str, dst: str) -> list[tuple[str, str]]:
     src_dir, src_name = posixpath.split(src)
     stem = posixpath.splitext(src_name)[0]
+    dst_dir = posixpath.dirname(dst)
     dst_stem = posixpath.splitext(posixpath.basename(dst))[0]
+    scan = [src_dir]
     try:
-        names = os.listdir(mapper.to_local(src_dir))
+        scan += [posixpath.join(src_dir, d) for d in sorted(os.listdir(mapper.to_local(src_dir)))
+                 if d.lower() in SUB_DIRS and os.path.isdir(os.path.join(mapper.to_local(src_dir), d))]
     except OSError:
         return []
     out = []
-    for n in sorted(names):
-        if n == src_name or not n.startswith(stem + "."):
+    for directory in scan:
+        try:
+            names = os.listdir(mapper.to_local(directory))
+        except OSError:
             continue
-        if posixpath.splitext(n)[1].lower() not in cfg.naming.sidecar_exts:
-            continue
-        out.append((posixpath.join(src_dir, n), posixpath.join(posixpath.dirname(dst), dst_stem + n[len(stem):])))
+        for n in sorted(names):
+            if (directory == src_dir and n == src_name) or not n.startswith(stem + "."):
+                continue
+            if posixpath.splitext(n)[1].lower() not in cfg.naming.sidecar_exts:
+                continue
+            out.append((posixpath.join(directory, n), posixpath.join(dst_dir, dst_stem + n[len(stem):])))
     return out
 
 

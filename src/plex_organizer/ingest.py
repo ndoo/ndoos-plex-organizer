@@ -10,6 +10,7 @@ from .config import Config
 from .model import MediaFile, PlexItem
 from .naming import sanitize, with_year
 from .pathmap import PathMapper
+from .planner import SUB_DIRS
 
 _EP_PATTERNS = (
     re.compile(r"\[S(\d{1,2})[ ._-]?E[pP]?[ ._-]?(\d{1,3})\]"),
@@ -149,3 +150,44 @@ def plan_ingest(cfg: Config, items: list[PlexItem], mapper: PathMapper,
             continue
         out.append(PlexItem(lib, "custom", root, name, files=[MediaFile(s.path)], dst_override={s.path: dst}))
     return out, stubs, unhandled
+
+
+def plan_subtitle_rescue(cfg: Config, items: list[PlexItem], mapper: PathMapper, records: list[dict]) -> list[PlexItem]:
+    """Move subtitles left behind by an earlier rename next to the video they belonged to.
+
+    The rename journal says where each video went; a leftover subtitle whose name starts with the old
+    video's stem follows it, in the same folder or in a Subs folder beside it.
+    """
+    moved: dict[tuple[str, str], tuple[str, str]] = {}  # (old dir, old stem) -> (new dir, new stem)
+    video_exts = set(cfg.naming.video_exts)
+    pairs: list[tuple[str, str]] = []
+    for r in records:
+        if r.get("type") == "fs":
+            pairs.append((r["src"], r["dst"]))
+        elif r.get("type") == "torrent":
+            for _, rel, tgt in r["files"]:
+                pairs.append((mapper.deluge_to_local(posixpath.join(r["old_save_path"], rel)),
+                              mapper.deluge_to_local(posixpath.join(r["new_save_path"], tgt))))
+    for old, new in pairs:
+        if posixpath.splitext(old)[1].lower() in video_exts:
+            moved[(posixpath.dirname(old), posixpath.splitext(posixpath.basename(old))[0])] = (
+                posixpath.dirname(new), posixpath.splitext(posixpath.basename(new))[0])
+    out: list[PlexItem] = []
+    for s in cleanmod.find(cfg, items, mapper, None):
+        if s.category != "keep-subtitle":
+            continue
+        local = mapper.to_local(s.path)
+        here = posixpath.dirname(local)
+        parents = [here] + ([posixpath.dirname(here)] if posixpath.basename(here).lower() in SUB_DIRS else [])
+        name = posixpath.basename(local)
+        hit = next(((new_dir, new_stem + name[len(stem):]) for d in parents for (od, stem), (new_dir, new_stem) in moved.items()
+                    if od == d and name.startswith(stem + ".")), None)
+        if not hit:
+            continue
+        root = next((it.root for it in items if s.path.startswith(it.root + "/")), None)
+        lib = next((it.library for it in items if s.path.startswith(it.root + "/")), None)
+        dst = posixpath.join(mapper.local_to_plex(hit[0]), hit[1])
+        if root and dst != s.path:
+            out.append(PlexItem(lib, "custom", root, name, files=[MediaFile(s.path)], dst_override={s.path: dst}))
+    return out
+

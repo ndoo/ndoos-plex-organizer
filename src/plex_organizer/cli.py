@@ -155,6 +155,7 @@ def cmd_ingest(cfg, args) -> int:
     journal = Journal(os.path.join(cfg.state_dir, "journal.jsonl"))
     aliases = ingest.load_aliases(journal.read(), sorted({it.root for it in items}), mapper)
     extra, stubs, unhandled = ingest.plan_ingest(cfg, items, mapper, aliases)
+    extra += ingest.plan_subtitle_rescue(cfg, items, mapper, journal.read())
     ops = build_plan(cfg, extra, mapper, index)
     for o in ops:
         print(f"{o.action:5s} {o.reason:26s} {o.src} -> {o.dst}")

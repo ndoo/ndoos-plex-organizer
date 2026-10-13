@@ -489,3 +489,29 @@ def test_unpack_restores_vobsub_name_and_cleans_failed_outputs(env):
     (d / "z.idx").write_bytes(b"")
     unpack._remove_empty_outputs(unpack.ArchiveSet(str(d), "z.rar", [], [("z.idx", 5)]))
     assert not (d / "z.idx").exists() and (d / "e.idx").exists()
+
+
+def test_subtitles_in_subs_folder_follow_their_video(env):
+    root, cfg, mapper = env
+    touch(f"{root}/Movies/Rel.2000-GRP/rel.2000-grp.mkv")
+    touch(f"{root}/Movies/Rel.2000-GRP/Subs/rel.2000-grp.idx")
+    touch(f"{root}/Movies/Rel.2000-GRP/Subs/rel.2000-grp.sub")
+    item = movie("Rel", 2000, "/data/Movies/Rel.2000-GRP/rel.2000-grp.mkv")
+    dsts = sorted(o.dst for o in build_plan(cfg, [item], mapper, None))
+    assert dsts == ["/data/Movies/Rel (2000)/Rel (2000).idx", "/data/Movies/Rel (2000)/Rel (2000).mkv",
+                    "/data/Movies/Rel (2000)/Rel (2000).sub"]
+
+
+def test_subtitle_rescue_uses_the_journal(env):
+    from plex_organizer import ingest
+
+    root, cfg, mapper = env
+    touch(f"{root}/Movies/Rel (2000)/Rel (2000).mkv")
+    touch(f"{root}/Movies/Rel.2000-GRP/Subs/rel.2000-grp.idx")
+    touch(f"{root}/Movies/Rel.2000-GRP/Subs/rel.2000-grp.sub")
+    records = [{"type": "fs", "src": f"{root}/Movies/Rel.2000-GRP/rel.2000-grp.mkv",
+                "dst": f"{root}/Movies/Rel (2000)/Rel (2000).mkv"}]
+    items = [movie("Rel", 2000, "/data/Movies/Rel (2000)/Rel (2000).mkv")]
+    out = ingest.plan_subtitle_rescue(cfg, items, mapper, records)
+    assert sorted(next(iter(i.dst_override.values())) for i in out) == [
+        "/data/Movies/Rel (2000)/Rel (2000).idx", "/data/Movies/Rel (2000)/Rel (2000).sub"]
